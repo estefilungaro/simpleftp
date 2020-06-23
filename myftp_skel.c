@@ -25,7 +25,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s=recv(sd,buffer,BUFSIZE,0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -39,7 +39,6 @@ bool recv_msg(int sd, int code, char *text) {
     // boolean test for the code
     return (code == recv_code) ? true : false;
 }
-
 /**
  * function: send command formated to the server
  * sd: socket descriptor
@@ -50,13 +49,15 @@ void send_msg(int sd, char *operation, char *param) {
     char buffer[BUFSIZE] = "";
 
     // command formating
-    if (param != NULL)
+    if (param != NULL){
         sprintf(buffer, "%s %s\r\n", operation, param);
-    else
+    }else{
         sprintf(buffer, "%s\r\n", operation);
-
+    }
     // send command and check for errors
-
+    if(send(sd,res,strlen(res)+1,0)<0){
+            warn("error");
+    }
 }
 
 /**
@@ -84,26 +85,30 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
-    
+    send_msg(sd,*input,*param);
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
+    if(send_msg(sd,*input,*param))
 
     // ask for password
     printf("passwd: ");
     input = read_input();
 
     // send the command to the server
-
+send_msg(sd,"PASS",input);
 
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
-
+code = 230;
+if(!recv_msg(sd,code,NULL)){
+    errx("1,"Error en el login");
 }
+}
+
 
 /**
  * function: operation get
@@ -184,20 +189,54 @@ void operate(int sd) {
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-    int sd;
+    int sd,i,cont;
     struct sockaddr_in addr;
 
     // arguments checking
+    if(argc != 3){
+        printf("Cantidad incorrecta de args \n");
+        return -1;
+    }else{
+       for(i=0;i< strlen(argv[1]);i++){ //verifico caracter por caracter según código ascii (resto 48)para saber que recibo:punto,caracter o letra
+        cont= argv[1][i] -48;
+        if((cont<0 || cont < 9) && (cont!=-2)){//1 a 9 son los digitos permitidos en una dirección IP y -2 es el punto
+            printf("Error en la IP");
+            return -1;
+        }
+       }else if(argv[2]<0 || argv[2]>65536){
+       printf("Error en el puerto");
 
-    // create socket and check for errors
+       }
+    }
     
-    // set socket data    
+    // create socket and check for errors
+    if((sd = socket(  AF_INET, SOCK_STREAM,0))<0){
+        printf("error al crear Socket()");
+        return -1;
+    }
+    // set socket data
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(puerto);
+    addr.sin_addr.s_addr =htons(atoi(argv[2])); //transformo puerto en entero,con htons checkeo si es puerto valido
 
     // connect and check for errors
 
+     if(connect(sd, (struct sockaddr *)&addr,sizeof(addr))<0){
+
+     printf("error en connect() \n");
+     exit(-1);
+     }
     // if receive hello proceed with authenticate and operate if not warning
 
-    // close socket
+    if(recv_msg(sd,220,NULL)){
+        authenticate(sd);
+        operate(sd);
+    }else{
+    warn("error recv()");
 
+    }
+
+    // close socket
+    close(sd);
     return 0;
 }
