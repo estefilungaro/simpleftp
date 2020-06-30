@@ -121,9 +121,12 @@ void get(int sd, char *file_name) {
     FILE *file;
 
     // send the RETR command to the server
-
+    send_msg(sd, "RETR", NULL);
     // check for the response
-
+    if(!recv_msg(sd,299,buffer)){
+	warn(buffer);
+	return;
+    }
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
     sscanf(buffer, "File %*s size %d bytes", &f_size);
@@ -139,18 +142,20 @@ void get(int sd, char *file_name) {
     fclose(file);
 
     // receive the OK from the server
+    recv_msg(sd, 226, NULL);
 
 }
 
+         
 /**
  * function: operation quit
  * sd: socket descriptor
  **/
 void quit(int sd) {
     // send command QUIT to the client
-
+ send_msg(sd, "QUIT", NULL);
     // receive the answer from the server
-
+ recv_msg(sd, 221, NULL);
 }
 
 /**
