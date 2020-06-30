@@ -22,6 +22,8 @@
 #define MSG_299 "299 File %s size %ld bytes\r\n"
 #define MSG_226 "226 Transfer complete\r\n"
 
+#define FINPUERTO 65535
+
 /**
  * function: receive the commands from the client
  * sd: socket descriptor
@@ -40,7 +42,7 @@ bool recv_cmd(int sd, char *operation, char *param) {
 
     // receive the command in the buffer and check for errors
 
-
+    
 
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
@@ -82,7 +84,13 @@ bool send_ans(int sd, char *message, ...){
     va_end(args);
     // send answer preformated and check errors
 
-
+    if(send(sd, buffer, strlen(buffer),0)>0){
+	return true;
+    }
+    else{
+	warn("Error\n");
+	return false;
+    }
 
 
 }
@@ -126,13 +134,42 @@ bool check_credentials(char *user, char *pass) {
 
     // make the credential string
 
+	strcpy(cred, user);
+	strcat(cred, ":");
+	strcat(cred, pass);
+	strcat(cred, "\n");
+
     // check if ftpusers file it's present
+	
+	file = fopen(path,"r");
+	if(file == NULL){
+	     printf(MSG_550,path);
+	     exit(1);
+	}
 
     // search for credential string
 
+	
+	else{
+	    len = sizeof(char) * (strlen(cred) + 1);
+	    line = (char*)(malloc(len));
+	    while(!feof(file)){
+		fgets(line, len, file);
+		if(strcmp(cred, line)==0){
+		     found = true;
+		     break;
+		}
+	    }
+	}
+
     // close file and release any pointes if necessary
 
+	fclose(file);
+	free(line);
+
     // return search status
+
+	return found;
 }
 
 /**
@@ -191,24 +228,63 @@ int main (int argc, char *argv[]) {
 
     // arguments checking
 
+	int i, cont_puerto;
+
+	if (argc!=2){	//se comprueba si se recibe la cantidad de argumentos indicados
+	   printf("Ingrese un numero de puerto\n");
+	   exit(1);
+	}
+	else{
+	   for(i = 0; i < strlen(argv[1]);i++){	//se toma el primer argumento recibido y analiza caracter por caracter si es un numero o no
+	       cont_puerto = argv[1][i]-48;
+	       if(cont_puerto < 0 || cont_puerto >9){
+	          printf("Puerto ingresado no valido\n");
+            	  exit(1);
+               }
+	   }
+	}
+        if ((atoi(argv[1])<0)||(atoi(argv[1])>FINPUERTO)){	//se analiza si el puerto esta dentro del rango adecuado (0-65535)
+		printf("Ingrese un puerto valido\n");
+		exit(1);
+	}
+
     // reserve sockets and variables space
+    int msd, ssd;
+    struct sockaddr_in maddr, saddr;
+    socklen_t saddr_len = sizeof(saddr);
 
     // create server socket and check errors
+    msd= socket(AF_INET, SOCK_STREAM, 0);
+    if(msd<0){
+	warn("Errror");
+    }
     
     // bind master socket and check errors
+    maddr.sin_family = AF_INET;
+    maddr.sin_addr.s_addr = INADDR_ANY;
+    maddr.sin_port = htons(atoi(argv[1]));
 
+    if(bind(msd, (struct sockaddr *) &maddr, sizeof(maddr))<0){
+	errx(1,"Error");
+    }	
     // make it listen
-
+	listen(msd, 5);
+    
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
+	if((ssd = accept(msd,(struct sockaddr *) &saddr, &saddr_len))<0){
+	    errx(1, "Error");
+	}
 
         // send hello
-
+	send_ans(ssd, MSG_220);
         // operate only if authenticate is true
     }
 
     // close server socket
+    close(ssd);
+    close(msd);
 
     return 0;
 }
